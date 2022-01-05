@@ -48,9 +48,7 @@ class Board:
         self.on_click(self.get_cell(mouse_pos))
 
     def on_click(self, cell_coords):
-        # тест работы кота и врага
-        Cats((cell_coords[0] * self.cs + self.left, cell_coords[1] * self.cs + self.top), 200, ('star.png', 20, 100), 'денежный кот0.png')
-        Enemies((DIS_SIZE[0], cell_coords[1] * self.cs + self.top), 100, 100, 100, 'enemies.png')
+        pass
 
     def get_cell(self, mouse_pos):
         if self.left <= mouse_pos[0] <= self.left + self.cs * self.width and \
