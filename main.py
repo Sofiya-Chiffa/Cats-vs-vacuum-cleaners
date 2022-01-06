@@ -48,7 +48,7 @@ class Board:
         self.on_click(self.get_cell(mouse_pos))
 
     def on_click(self, cell_coords):
-        pass
+        Enemies((DIS_SIZE[0], cell_coords[1] * self.cs + self.top), 100, 1000000, 100, 'enemies.png')
 
     def get_cell(self, mouse_pos):
         if self.left <= mouse_pos[0] <= self.left + self.cs * self.width and \
@@ -65,25 +65,37 @@ class Cats(pygame.sprite.Sprite):
     def __init__(self, pos, health, power, name):
         # данные будут получаться из базы данных
         super().__init__(all_cats)
-        self.image = load_image(name)
+        sheet = pygame.transform.scale(load_image(name), (400, 160))
+        self.frames = []
+        self.cut_sheet(sheet, 5, 2)
+        self.cur_frame = 0
+        self.image = self.frames[self.cur_frame]
         self.image = pygame.transform.scale(self.image, (80, 80))
-        self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = pos[0], pos[1]
         self.health = health
         self.power = power  # картинка атаки, сила атаки, скорость полета атаки
         self.dt_attack, self.vel_attack = 0, 1
+        self.dt_fps = 0
 
     def update(self, dt):
-        if self.rect.y in enemies_list.keys() and enemies_list[self.rect.y] != 0 and\
-                self.power[1] is not None:
-            # анимация атаки
+        self.dt_fps += dt / 1000
+        if self.rect.y in enemies_list.keys() and enemies_list[self.rect.y] != 0:
+            if self.dt_fps >= 0.15:
+                self.dt_fps = 0
+                self.cur_frame = (self.cur_frame + 1) % len(self.frames)
+                self.image = self.frames[self.cur_frame]
             self.dt_attack += dt / 1000
-            if self.dt_attack >= self.vel_attack:
+            if self.dt_attack >= self.vel_attack and\
+                self.power[0] is not None:
                 self.dt_attack = 0
                 Cat_Attack(self.power, (self.rect.x, self.rect.y))
-        else:
-            if self.power[1] is None:
-                pass
+        elif self.power[1] == 0 and self.dt_fps >= 0.15:
+            self.dt_fps = 0
+            self.cur_frame = (self.cur_frame + 1) % len(self.frames)
+            self.image = self.frames[self.cur_frame]
+        elif self.power[1] != 0:
+            self.cur_frame = 0
+            self.image = self.frames[self.cur_frame]
 
     def taking_damage(self, damage):
         self.health -= damage
@@ -91,8 +103,16 @@ class Cats(pygame.sprite.Sprite):
             self.death()
 
     def death(self):
-        # анимация смерти
         self.kill()
+
+    def cut_sheet(self, sheet, columns, rows):
+        self.rect = pygame.Rect(0, 0, sheet.get_width() // columns,
+                                sheet.get_height() // rows)
+        for j in range(rows):
+            for i in range(columns):
+                frame_location = (self.rect.w * i, self.rect.h * j)
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
 
 
 class Cat_Attack(pygame.sprite.Sprite):
@@ -102,8 +122,8 @@ class Cat_Attack(pygame.sprite.Sprite):
         self.im, self.pow, self.vel = power
         self.image = load_image(self.im)
         self.rect = self.image.get_rect()
-        self.rect.x, self.rect.y = pos[0], pos[1]
-        self.x = pos[0]
+        self.rect.x, self.rect.y = pos[0] + 40, pos[1]
+        self.x = pos[0] + 40
         if self.pow == 0:
             self.dt = 0
 
@@ -118,7 +138,7 @@ class Cat_Attack(pygame.sprite.Sprite):
                 self.kill()
         else:
             self.dt += dt / 1000
-            if self.dt == 1:
+            if self.dt >= 0.5:
                 self.kill()
 
 
@@ -131,7 +151,7 @@ class Enemies(pygame.sprite.Sprite):
         self.rect = self.image.get_rect()
         enemies_list.setdefault(pos[1], 0)
         enemies_list[pos[1]] += 1
-        self.rect.x, self.rect.y = pos[0], pos[1]
+        self.rect.x, self.rect.y = pos[0], pos[1] + 5
         self.x = pos[0]
         self.vel = vel
         self.health, self.power = health, power
@@ -180,6 +200,13 @@ all_enemies = pygame.sprite.Group()
 all_cats = pygame.sprite.Group()
 board = Board(9, 6)
 running = True
+#
+Cats((90, 90), 500, ('денежный кот атака.png', 0, 0), 'денежный кот.png')
+Cats((90, 170), 500, ('вжух атака.png', 150, 80), 'вжух.png')
+Cats((90, 250), 500, ('поп атака.png', 100, 100), 'поп.png')
+Cats((90, 330), 500, ('просто кот атака.png', 200, 125), 'просто кот.png')
+Cats((90, 410), 500, (None, 0, 0), 'танк.png')
+#
 clock = pygame.time.Clock()
 while running:
     screen.fill('black')
