@@ -84,8 +84,8 @@ class Cats(pygame.sprite.Sprite):
                 self.cur_frame = (self.cur_frame + 1) % len(self.frames)
                 self.image = self.frames[self.cur_frame]
             self.dt_attack += dt / 1000
-            if self.dt_attack >= self.vel_attack and\
-                self.power[0] is not None:
+            if self.dt_attack >= self.vel_attack and \
+                    self.power[0] is not None:
                 self.dt_attack = 0
                 Cat_Attack(self.power, (self.rect.x, self.rect.y))
         elif self.power[1] == 0:
@@ -223,16 +223,17 @@ all_enemies = pygame.sprite.Group()
 all_cats = pygame.sprite.Group()
 board = Board(9, 6)
 running = True
+
 #
-Cats((90, 90), 500, ('денежный кот атака.png', 0, 0), 'денежный кот.png')
-Cats((90, 170), 500, ('вжух атака.png', 150, 80), 'вжух.png')
-Cats((90, 250), 500, ('поп атака.png', 100, 100), 'поп.png')
-Cats((90, 330), 500, ('просто кот атака.png', 200, 125), 'просто кот.png')
-Cats((90, 410), 500, (None, 0, 0), 'танк.png')
+# Cats((90, 90), 500, ('денежный кот атака.png', 0, 0), 'денежный кот.png')
+# Cats((90, 170), 500, ('вжух атака.png', 150, 80), 'вжух.png')
+# Cats((90, 250), 500, ('поп атака.png', 100, 100), 'поп.png')
+# Cats((90, 330), 500, ('просто кот атака.png', 200, 125), 'просто кот.png')
+# Cats((90, 410), 500, (None, 0, 0), 'танк.png')
 #
-Enemies((DIS_SIZE[0], 170), 100, 2000, 50, 'роб пылесос.png')
-Enemies((DIS_SIZE[0], 250), 100, 1500, 150, 'пион пылесос.png')
-Enemies((DIS_SIZE[0], 330), 100, 1750, 100, 'верт пылесос.png')
+# Enemies((DIS_SIZE[0], 170), 100, 2000, 50, 'роб пылесос.png')
+# Enemies((DIS_SIZE[0], 250), 100, 1500, 150, 'пион пылесос.png')
+# Enemies((DIS_SIZE[0], 330), 100, 1750, 100, 'верт пылесос.png')
 #
 
 clock = pygame.time.Clock()
