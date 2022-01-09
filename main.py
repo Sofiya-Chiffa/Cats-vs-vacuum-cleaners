@@ -3,7 +3,6 @@ import sys
 import pygame
 from itertools import product
 
-
 DIS_SIZE = (1000, 600)
 pygame.init()
 screen = pygame.display.set_mode(DIS_SIZE)
@@ -105,6 +104,20 @@ def level_map():
         screen.fill('green')
         pygame.display.flip()
         clock.tick(FPS)
+
+
+def load_level(text):
+    if text[0] == '':
+        return
+    for i in range(6):
+        if text[i][0] == 'в':
+            Enemies((DIS_SIZE, 120 + (i * 80)), 'Вертикальный пылесос')
+        elif text[i][0] == 'п':
+            Enemies((DIS_SIZE, 120 + (i * 80)), 'Пылесос пионер')
+        elif text[i][0] == 'р':
+            Enemies((DIS_SIZE, 120 + (i * 80)), 'Робот пылесос')
+        text[i] = text[i][1:]
+
 
 
 # Общий класс для рисования клетчатого поля
@@ -213,7 +226,7 @@ class Cats(pygame.sprite.Sprite):
 # Класс врагов
 class Enemies(pygame.sprite.Sprite):
 
-    def __init__(self, name):
+    def __init__(self, pos, name):
         pass
 
     def update(self, dt):
@@ -240,6 +253,9 @@ board.set_view(DIS_SIZE[0] - cell_size * 9, DIS_SIZE[1] - cell_size * 6, cell_si
 shop = Shop(1, 5)
 shop.set_view(0, 30, DIS_SIZE[1] // 5 - 6)
 
+num_level, dt_level = 1, 0
+text_level = ''.split('\n')
+
 running = True
 while running:
     for event in pygame.event.get():
@@ -250,11 +266,17 @@ while running:
             shop.get_click(event.pos)
             info_bar.get_click(event.pos)
     dt = clock.tick()
-
     screen.fill('black')
     info_bar.render(screen)
     board.render(screen)
     shop.render(screen)
+
+
+    dt_level += dt / 1000
+    if dt_level >= 1:
+        dt_level = 0
+        load_level(text_level)
+
     pygame.display.flip()
 
 pygame.quit()
