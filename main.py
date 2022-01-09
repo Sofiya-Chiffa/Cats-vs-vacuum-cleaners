@@ -111,13 +111,12 @@ def load_level(text):
         return
     for i in range(6):
         if text[i][0] == 'в':
-            Enemies((DIS_SIZE, 120 + (i * 80)), 'Вертикальный пылесос')
+            Enemies((DIS_SIZE[0], 120 + (i * 80)), 'Вертикальный пылесос')
         elif text[i][0] == 'п':
-            Enemies((DIS_SIZE, 120 + (i * 80)), 'Пылесос пионер')
+            Enemies((DIS_SIZE[0], 120 + (i * 80)), 'Пылесос пионер')
         elif text[i][0] == 'р':
-            Enemies((DIS_SIZE, 120 + (i * 80)), 'Робот пылесос')
+            Enemies((DIS_SIZE[0], 120 + (i * 80)), 'Робот пылесос')
         text[i] = text[i][1:]
-
 
 
 # Общий класс для рисования клетчатого поля
@@ -253,8 +252,18 @@ board.set_view(DIS_SIZE[0] - cell_size * 9, DIS_SIZE[1] - cell_size * 6, cell_si
 shop = Shop(1, 5)
 shop.set_view(0, 30, DIS_SIZE[1] // 5 - 6)
 
-num_level, dt_level = 1, 0
-text_level = ''.split('\n')
+# num_level олучаем из level_map
+num_level, dt_level = None, 0
+# text_level из бд
+text_level = '......р........р...........р..\n' \
+             '...............р.....р........\n..............................\n' \
+             '.....................р........\n..............................\n' \
+             '..............................'.split('\n')
+
+enemies_list = dict()
+all_cat_attack = pygame.sprite.Group()
+all_enemies = pygame.sprite.Group()
+all_cats = pygame.sprite.Group()
 
 running = True
 while running:
@@ -271,11 +280,24 @@ while running:
     board.render(screen)
     shop.render(screen)
 
-
     dt_level += dt / 1000
     if dt_level >= 1:
         dt_level = 0
         load_level(text_level)
+        if len(text_level[0]) == 0:
+            for k in enemies_list.keys():
+                if enemies_list[k] > 0:
+                    break
+            else:
+                pass
+                # конец игры
+
+    all_enemies.draw(screen)
+    all_cats.draw(screen)
+    all_cat_attack.draw(screen)
+    all_enemies.update(dt)
+    all_cats.update(dt)
+    all_cat_attack.update(dt)
 
     pygame.display.flip()
 
