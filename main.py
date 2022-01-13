@@ -3,7 +3,6 @@ import sys
 import pygame
 from itertools import product
 
-
 DIS_SIZE = (1000, 600)
 pygame.init()
 screen = pygame.display.set_mode(DIS_SIZE)
@@ -131,7 +130,7 @@ class Board:
         self.on_click(self.get_cell(mouse_pos))
 
     def on_click(self, cell_coords):
-        print(cell_coords)
+        return cell_coords
 
     def get_cell(self, mouse_pos):
         if self.left <= mouse_pos[0] <= self.left + self.cs * self.width and \
@@ -142,14 +141,46 @@ class Board:
         else:
             return None
 
+    def change_board(self, pos):
+        self.board[pos[0]][pos[1]] = self.board[pos[0]][pos[1]] + 1 % 2
+
+    def ret_status(self, pos):
+        return self.board[pos[0]][pos[1]]
+
 
 # Класс для рисования магазина
 class Shop(Board):
 
     def __init__(self, width, height):
         super().__init__(width, height)
+        self.arts = {0: ['денежный кот0.png', 0], 1: ['поп0.png', 0], 2: ['просто кот0.png', 0],
+                     3: ['танк0.png', 0], 4: ['вжух0.png', 0]}
 
-    def move_cat_to_board(self):
+    def render(self, surface):
+        i = 0
+        for x, y in product(range(self.width), range(self.height)):
+            image = pygame.transform.scale(load_image(self.arts[i][0]), (114, 114))
+            image_rect = image.get_rect()
+            image_rect.x, image_rect.y = x * self.cs + self.left, y * self.cs + self.top
+            screen.blit(image, image_rect)
+            pygame.draw.rect(surface, 'white', (x * self.cs + self.left, y * self.cs + self.top,
+                                                self.cs, self.cs), width=1)
+            i += 1
+
+    def check_cat(self, pos):
+        if pos is None:
+            return
+        for event in pygame.event.get():
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                board_pos = board.get_click(event.pos)
+        if board_pos is None:
+            return
+        else:
+             if board.ret_status(board_pos) == 0:
+                 return
+        board.change_board(board_pos)
+        Cats((board_pos[0] * 80 + DIS_SIZE[0] - 80 * 9, board_pos[1] * 80 + DIS_SIZE[1] - 80 * 6), '') # потом добавить имя!!!
+    def move_cat_to_board(self, pos):
         pass
 
 
@@ -246,8 +277,8 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.MOUSEBUTTONDOWN:
-            board.get_click(event.pos)
-            shop.get_click(event.pos)
+            shop.check_cat(shop.get_click(event.pos))
+
             info_bar.get_click(event.pos)
     dt = clock.tick()
 
