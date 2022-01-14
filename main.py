@@ -13,6 +13,7 @@ clock = pygame.time.Clock()
 FPS = 50
 conn = sqlite3.connect("game_base.sqlite3")
 all_levels = pygame.sprite.Group()
+num_level, dt_level = None, 0
 
 
 # Выход из игры
@@ -99,6 +100,7 @@ def start_screen():
 
 # Здесь рисуется карта уровней, и при нажатии на уровень будет запускаться соответствующий
 def level_map():
+    global num_level
     font = pygame.font.SysFont('comicsansms', 35)
     text_coord = 30
     string_rendered = font.render('ВЫБЕРИТЕ УРОВЕНЬ', True, 'black')
@@ -163,6 +165,19 @@ def level_map():
         check_board.render(screen)
         pygame.display.flip()
         clock.tick(FPS)
+
+
+def load_level(text):
+    if text[0] == '':
+        return
+    for i in range(6):
+        if text[i][0] == 'в':
+            Enemies((DIS_SIZE[0], 120 + (i * 80)), 'Вертикальный пылесос')
+        elif text[i][0] == 'п':
+            Enemies((DIS_SIZE[0], 120 + (i * 80)), 'Пылесос пионер')
+        elif text[i][0] == 'р':
+            Enemies((DIS_SIZE[0], 120 + (i * 80)), 'Робот пылесос')
+        text[i] = text[i][1:]
 
 
 # Общий класс для рисования клетчатого поля
@@ -410,9 +425,7 @@ start_screen()
 info_bar = InfoBar(3, 1)
 
 enemies_list = dict()
-all_cat_attack = pygame.sprite.Group()
-all_enemies = pygame.sprite.Group()
-all_cats = pygame.sprite.Group()
+
 board = Board(9, 6)
 cell_size = 80
 board.set_view(DIS_SIZE[0] - cell_size * 9, DIS_SIZE[1] - cell_size * 6, cell_size)
@@ -420,20 +433,30 @@ board.set_view(DIS_SIZE[0] - cell_size * 9, DIS_SIZE[1] - cell_size * 6, cell_si
 shop = Shop(1, 5)
 shop.set_view(0, 30, DIS_SIZE[1] // 5 - 6)
 
+# Cats((90, 90), 500, ('денежный кот атака.png', 0, 0), 'денежный кот.png')
+# Cats((90, 170), 500, ('вжух атака.png', 150, 80), 'вжух.png')
+# Cats((90, 250), 500, ('поп атака.png', 100, 100), 'поп.png')
+# Cats((90, 330), 500, ('просто кот атака.png', 200, 125), 'просто кот.png')
+# Cats((90, 410), 500, (None, 0, 0), 'танк.png')
+#
+# Enemies((DIS_SIZE[0], 170), 100, 2000, 50, 'роб пылесос.png')
+# Enemies((DIS_SIZE[0], 250), 100, 1500, 150, 'пион пылесос.png')
+# Enemies((DIS_SIZE[0], 330), 100, 1750, 100, 'верт пылесос.png')
+
+cursor = conn.cursor()
+cursor.execute("""SELECT l.lvl_map FROM levels l
+                    WHERE l.id = ?""", (num_level,))
+new_text_level = ''
+for row in cursor:
+    new_text_level = row[0]
+text_level = new_text_level.split('\\n')
+print(text_level)
+
+all_cat_attack = pygame.sprite.Group()
+all_enemies = pygame.sprite.Group()
+all_cats = pygame.sprite.Group()
+
 running = True
-
-
-Cats((90, 90), 500, ('денежный кот атака.png', 0, 0), 'денежный кот.png')
-Cats((90, 170), 500, ('вжух атака.png', 150, 80), 'вжух.png')
-Cats((90, 250), 500, ('поп атака.png', 100, 100), 'поп.png')
-Cats((90, 330), 500, ('просто кот атака.png', 200, 125), 'просто кот.png')
-Cats((90, 410), 500, (None, 0, 0), 'танк.png')
-
-Enemies((DIS_SIZE[0], 170), 100, 2000, 50, 'роб пылесос.png')
-Enemies((DIS_SIZE[0], 250), 100, 1500, 150, 'пион пылесос.png')
-Enemies((DIS_SIZE[0], 330), 100, 1750, 100, 'верт пылесос.png')
-
-
 while running:
     for event in pygame.event.get():
         if event.type == pygame.QUIT:
@@ -443,11 +466,22 @@ while running:
             shop.get_click(event.pos)
             info_bar.get_click(event.pos)
     dt = clock.tick()
-
     screen.fill('black')
     info_bar.render(screen)
     board.render(screen)
     shop.render(screen)
+
+    dt_level += dt / 1000
+    if dt_level >= 1:
+        dt_level = 0
+        load_level(text_level)
+        if len(text_level[0]) == 0:
+            for k in enemies_list.keys():
+                if enemies_list[k] > 0:
+                    break
+            else:
+                pass
+                # конец игры
     
     all_enemies.draw(screen)
     all_cats.draw(screen)
