@@ -1,6 +1,7 @@
 import os
 import sys
 import pygame
+import sqlite3
 from itertools import product
 
 DIS_SIZE = (1000, 600)
@@ -9,6 +10,9 @@ screen = pygame.display.set_mode(DIS_SIZE)
 pygame.display.set_caption('Коты против пылесосов')
 clock = pygame.time.Clock()
 FPS = 50
+conn = sqlite3.connect("game_base.sqlite3")
+all_levels = pygame.sprite.Group()
+num_level, dt_level = None, 0
 
 
 # Выход из игры
@@ -71,8 +75,7 @@ def start_screen():
                     event.type == pygame.MOUSEBUTTONDOWN:
                 # Для перехода на карту уровней
                 if 28 <= event.pos[0] <= 348 and 48 <= event.pos[1] <= 118:
-                    level_map()
-                    return
+                    return level_map()
                 # Для выхода из игры
                 elif 28 <= event.pos[0] <= 348 and 120 <= event.pos[1] <= 185:
                     terminate()
@@ -95,15 +98,88 @@ def start_screen():
 
 # Здесь рисуется карта уровней, и при нажатии на уровень будет запускаться соответствующий
 def level_map():
+    global num_level
+    font = pygame.font.SysFont('comicsansms', 35)
+    text_coord = 30
+    string_rendered = font.render('ВЫБЕРИТЕ УРОВЕНЬ', True, 'black')
+    intro_rect = string_rendered.get_rect()
+    intro_rect.top = text_coord
+    intro_rect.x = 350
+
+    spr_x = 40
+    spr_y = 100
+    for i in range(1, 8):
+        sprite = pygame.sprite.Sprite()
+        cursor = conn.cursor()
+        cursor.execute("""
+            SELECT l.status as st FROM levels l
+            WHERE l.id = ?""", (i,))
+        # Если уровень не пройден рисуется красная картинка, иначе - зеленая
+        sprite.image = load_image('red_lvl.png').convert_alpha()
+        for row in cursor:
+            if row[0] == 1:
+                sprite.image = load_image('green_lvl.png').convert_alpha()
+        sprite.rect = sprite.image.get_rect()
+        sprite.rect.x += 20
+        all_levels.add(sprite)
+        sprite.rect.x += spr_x
+        sprite.rect.y = spr_y
+        spr_x += 20 + 205
+        if spr_x >= 775:
+            sprite.x = 0
+            spr_x = 40
+            spr_y = 325
+    check_board = Board(4, 2)
+    check_board.set_view(60, 100, 225)
     while True:
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 terminate()
-            elif event.type == pygame.MOUSEBUTTONDOWN:
-                return
-        screen.fill('green')
+            elif event.type == pygame.MOUSEBUTTONDOWN and event.button == 1:
+                for lvl in all_levels:
+                    if lvl.rect.collidepoint(event.pos):
+                        num_level = check_board.get_click(event.pos)[0] + 1
+                        if check_board.get_click(event.pos)[1] > 0:
+                            num_level += 4
+                        cur = conn.cursor()
+                        text_tuple = cur.execute("""
+                            SELECT lvl_map as st FROM levels
+                            WHERE id = ?""", (num_level,)).fetchall()[0]
+                        text = text_tuple[0].split('\\n')
+                        return text
+        screen.fill('white')
+        all_levels.draw(screen)
+        screen.blit(string_rendered, intro_rect)
+
+        font1 = pygame.font.SysFont('comicsansms', 70)
+        top_coord = 170
+        intr_x = 140
+        for i in range(7):
+            string_rendered1 = font1.render(f'{i + 1}', True, 'black')
+            intro_rect1 = string_rendered.get_rect()
+            intro_rect1.top = top_coord
+            intro_rect1.x = intr_x
+            screen.blit(string_rendered1, intro_rect1)
+            intr_x += 225
+            if intr_x > 1000:
+                intr_x = 140
+                top_coord = 400
+        check_board.render(screen)
         pygame.display.flip()
         clock.tick(FPS)
+
+
+def load_level(text):
+    if text[0] == '':
+        return
+    for i in range(6):
+        if text[i][0] == 'в':
+            Enemies((DIS_SIZE[0], 120 + (i * 80)), 'Вертикальный пылесос')
+        elif text[i][0] == 'п':
+            Enemies((DIS_SIZE[0], 120 + (i * 80)), 'Пылесос пионер')
+        elif text[i][0] == 'р' or text[i][0] == 'p':
+            Enemies((DIS_SIZE[0], 120 + (i * 80)), 'Робот пылесос')
+        text[i] = text[i][1:]
 
 
 # Общий класс для рисования клетчатого поля
@@ -142,10 +218,10 @@ class Board:
             return None
 
     def change_board(self, pos):
-        self.board[pos[0]][pos[1]] = self.board[pos[0]][pos[1]] + 1 % 2
+        return self.board[board.get_click(pos)[0]][board.get_click(pos)[1]]
 
     def ret_status(self, pos):
-        return self.board[pos[0]][pos[1]]
+        return self.board[board.get_click(pos)[0]][board.get_click(pos)[1]]
 
 
 # Класс для рисования магазина
@@ -153,8 +229,9 @@ class Shop(Board):
 
     def __init__(self, width, height):
         super().__init__(width, height)
-        self.arts = {0: ['денежный кот0.png', 0, ''], 1: ['поп0.png', 0, ''], 2: ['просто кот0.png', 0, ''],
-                     3: ['танк0.png', 0, ''], 4: ['вжух0.png', 0, '']}
+        self.arts = {0: ['денежный кот0.png', 0, 'Денежный кот'], 1: ['поп0.png', 0, 'Кот-поп'],
+                     2: ['просто кот0.png', 0, 'Просто кот'],
+                     3: ['танк0.png', 0, 'Кот-танк'], 4: ['вжух0.png', 0, 'Кот-вжух']}
         # добавить стоимость и имена
 
     def render(self, surface):
@@ -180,7 +257,8 @@ class Shop(Board):
         if board.ret_status(pos) == 1:
             return
         board.change_board(pos)
-        Cats((pos[0] * 80 + DIS_SIZE[0] - 80 * 9, pos[1] * 80 + DIS_SIZE[1] - 80 * 6), name)
+        Cats((board.get_click(pos)[0] * 80 + (DIS_SIZE[0] - cell_size * 9),
+              board.get_click(pos)[1] * 80 + (DIS_SIZE[1] - cell_size * 6)), name)
 
 
 # Класс для рисования информационной панели сверху уровня
@@ -224,18 +302,28 @@ class InfoBar(Board):
 # Класс котиков
 class Cats(pygame.sprite.Sprite):
 
-    def __init__(self, pos, health, power, name):
-        # данные будут получаться из базы данных
+    def __init__(self, pos, name):
         super().__init__(all_cats)
-        sheet = pygame.transform.scale(load_image(name), (400, 160))
+        image = conn.cursor().execute("""
+                            SELECT image FROM cats
+                            WHERE name = ?""", (name,)).fetchall()[0]
+        with open('data\cat.png', 'wb') as file:
+            file.write(image[0])
+        image = load_image('cat.png')
+        sheet = pygame.transform.scale(image, (400, 160))
         self.frames = []
         self.cut_sheet(sheet, 5, 2)
         self.cur_frame = 0
         self.image = self.frames[self.cur_frame]
         self.rect.x, self.rect.y = pos[0], pos[1]
-        self.health = health
-        self.power = power  # картинка атаки, сила атаки, скорость полета атаки
-        self.dt_attack, self.vel_attack = 0, 1
+        self.health = conn.cursor().execute("""
+            SELECT hp FROM cats
+            WHERE name = ?""", (name,)).fetchall()[0][0]
+        self.power = conn.cursor().execute("""
+            SELECT atack_img, dmg, fly_atack_speed FROM cats
+            WHERE name = ?""", (name,)).fetchall()[0]  # картинка атаки, сила атаки, скорость полета атаки
+        self.dt_attack, self.vel_attack = 0, conn.cursor().execute("""SELECT atack_speed 
+            FROM cats WHERE name = ?""", (name,)).fetchall()[0][0]
         self.dt_fps = 0
 
     def update(self, dt):
@@ -286,8 +374,10 @@ class CatAttack(pygame.sprite.Sprite):
 
     def __init__(self, power, pos):
         super().__init__(all_cat_attack)
-        self.im, self.pow, self.vel = power
-        self.image = load_image(self.im)
+        im, self.pow, self.vel = power
+        with open('data\\at_im.png', 'wb') as file:
+            file.write(im)
+        self.image = load_image('at_im.png')
         self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = pos[0] + 30, pos[1]
         self.x = pos[0] + 30
@@ -299,7 +389,7 @@ class CatAttack(pygame.sprite.Sprite):
             self.x += self.vel * dt / 1000
             self.rect.x = self.x
             if pygame.sprite.spritecollideany(self, all_enemies):
-                pygame.sprite.spritecollideany(self, all_enemies).taking_damage(self.pow)
+                self.attack(pygame.sprite.spritecollideany(self, all_enemies))
                 self.kill()
             elif self.x > DIS_SIZE[0]:
                 self.kill()
@@ -308,14 +398,24 @@ class CatAttack(pygame.sprite.Sprite):
             if self.dt >= 0.5:
                 self.kill()
 
+    def attack(self, en):
+        if en is None:
+            return
+        en.taking_damage(self.pow)
+
 
 # Класс врагов
 class Enemies(pygame.sprite.Sprite):
 
-    def __init__(self, pos, vel, health, power, name):
-        # данные будут получаться из базы данных
+    def __init__(self, pos, name):
         super().__init__(all_enemies)
-        sheet = pygame.transform.scale(load_image(name), (400, 160))
+        image = conn.cursor().execute("""
+            SELECT en_image FROM enemies
+            WHERE name = ?""", (name,)).fetchall()[0]
+        with open('data\en.png', 'wb') as file:
+            file.write(image[0])
+        image = load_image('en.png')
+        sheet = pygame.transform.scale(image, (400, 160))
         self.frames = []
         self.cut_sheet(sheet, 5, 2)
         self.cur_frame = 0
@@ -324,9 +424,17 @@ class Enemies(pygame.sprite.Sprite):
         enemies_list[pos[1]] += 1
         self.rect.x, self.rect.y = pos[0] + 30, pos[1]
         self.x = pos[0] + 30
-        self.vel = vel
-        self.health, self.power = health, power
-        self.vel_attack = 1
+        self.vel = conn.cursor().execute("""
+            SELECT speed FROM enemies
+            WHERE name = ?""", (name,)).fetchall()[0][0]
+        self.health, self.power = conn.cursor().execute("""
+            SELECT hp FROM enemies
+            WHERE name = ?""", (name,)).fetchall()[0][0], conn.cursor().execute("""
+            SELECT dmg FROM enemies
+            WHERE name = ?""", (name,)).fetchall()[0][0]
+        self.vel_attack = conn.cursor().execute("""
+            SELECT atack_speed FROM enemies
+            WHERE name = ?""", (name,)).fetchall()[0][0]
         self.run = True
         self.dt_fps = 0
 
@@ -350,11 +458,14 @@ class Enemies(pygame.sprite.Sprite):
                 self.attack(pygame.sprite.spritecollideany(self, all_cats))
                 if not pygame.sprite.spritecollideany(self, all_cats):
                     self.run = True
-        if self.rect.x == -40:
+        if self.rect.x == 180:
+            enemies_list[self.rect.y] -= 1
             self.kill()
             # - здоровье игрока
 
     def attack(self, cat):
+        if cat is None:
+            return
         cat.taking_damage(self.power)
 
     def taking_damage(self, damage):
@@ -376,11 +487,13 @@ class Enemies(pygame.sprite.Sprite):
                     frame_location, self.rect.size)))
 
 
+text_level = start_screen()
 
-start_screen()
-
+enemies_list = dict()
+all_cat_attack = pygame.sprite.Group()
+all_enemies = pygame.sprite.Group()
+all_cats = pygame.sprite.Group()
 info_bar = InfoBar(3, 1)
-
 board = Board(9, 6)
 cell_size = 80
 board.set_view(DIS_SIZE[0] - cell_size * 9, DIS_SIZE[1] - cell_size * 6, cell_size)
@@ -395,11 +508,11 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.MOUSEBUTTONDOWN:
-            make_cat = shop.check_cat(shop.get_click(event.pos))
             if make_cat != '':
                 if board.get_click(event.pos) is not None:
                     shop.move_cat_to_board(event.pos, make_cat)
                     make_cat = ''
+            make_cat = shop.check_cat(shop.get_click(event.pos))
             info_bar.get_click(event.pos)
     dt = clock.tick()
 
@@ -407,6 +520,25 @@ while running:
     info_bar.render(screen)
     board.render(screen)
     shop.render(screen)
+
+    dt_level += dt / 1000
+    if dt_level >= 1:
+        dt_level = 0
+        load_level(text_level)
+        if len(text_level[0]) == 0:
+            for k in enemies_list.keys():
+                if enemies_list[k] > 0:
+                    break
+            else:
+                pass
+
+    all_enemies.draw(screen)
+    all_cats.draw(screen)
+    all_cat_attack.draw(screen)
+    all_enemies.update(dt)
+    all_cats.update(dt)
+    all_cat_attack.update(dt)
+
     pygame.display.flip()
 
 pygame.quit()
