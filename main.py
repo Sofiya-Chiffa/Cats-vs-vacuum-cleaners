@@ -127,7 +127,7 @@ class Board:
                                                 self.cs, self.cs), width=1)
 
     def get_click(self, mouse_pos):
-        self.on_click(self.get_cell(mouse_pos))
+        return self.on_click(self.get_cell(mouse_pos))
 
     def on_click(self, cell_coords):
         return cell_coords
@@ -153,8 +153,9 @@ class Shop(Board):
 
     def __init__(self, width, height):
         super().__init__(width, height)
-        self.arts = {0: ['денежный кот0.png', 0], 1: ['поп0.png', 0], 2: ['просто кот0.png', 0],
-                     3: ['танк0.png', 0], 4: ['вжух0.png', 0]}
+        self.arts = {0: ['денежный кот0.png', 0, ''], 1: ['поп0.png', 0, ''], 2: ['просто кот0.png', 0, ''],
+                     3: ['танк0.png', 0, ''], 4: ['вжух0.png', 0, '']}
+        # добавить стоимость и имена
 
     def render(self, surface):
         i = 0
@@ -169,19 +170,17 @@ class Shop(Board):
 
     def check_cat(self, pos):
         if pos is None:
-            return
-        for event in pygame.event.get():
-            if event.type == pygame.MOUSEBUTTONDOWN:
-                board_pos = board.get_click(event.pos)
-        if board_pos is None:
-            return
+            return ''
+        if self.arts[pos[1]][1] <= 0:  # деньги игрока
+            return self.arts[pos[1]][2]
         else:
-             if board.ret_status(board_pos) == 0:
-                 return
-        board.change_board(board_pos)
-        Cats((board_pos[0] * 80 + DIS_SIZE[0] - 80 * 9, board_pos[1] * 80 + DIS_SIZE[1] - 80 * 6), '') # потом добавить имя!!!
-    def move_cat_to_board(self, pos):
-        pass
+            return ''
+
+    def move_cat_to_board(self, pos, name):
+        if board.ret_status(pos) == 1:
+            return
+        board.change_board(pos)
+        Cats((pos[0] * 80 + DIS_SIZE[0] - 80 * 9, pos[1] * 80 + DIS_SIZE[1] - 80 * 6), name)
 
 
 # Класс для рисования информационной панели сверху уровня
@@ -225,39 +224,157 @@ class InfoBar(Board):
 # Класс котиков
 class Cats(pygame.sprite.Sprite):
 
-    def __init__(self, name):
-        pass
+    def __init__(self, pos, health, power, name):
+        # данные будут получаться из базы данных
+        super().__init__(all_cats)
+        sheet = pygame.transform.scale(load_image(name), (400, 160))
+        self.frames = []
+        self.cut_sheet(sheet, 5, 2)
+        self.cur_frame = 0
+        self.image = self.frames[self.cur_frame]
+        self.rect.x, self.rect.y = pos[0], pos[1]
+        self.health = health
+        self.power = power  # картинка атаки, сила атаки, скорость полета атаки
+        self.dt_attack, self.vel_attack = 0, 1
+        self.dt_fps = 0
 
     def update(self, dt):
-        pass
-
-    def attack(self, enemie):
-        pass
+        self.dt_fps += dt / 1000
+        if self.rect.y in enemies_list.keys() and enemies_list[self.rect.y] != 0:
+            if self.dt_fps >= 0.15:
+                self.dt_fps = 0
+                self.cur_frame = (self.cur_frame + 1) % len(self.frames)
+                self.image = self.frames[self.cur_frame]
+            self.dt_attack += dt / 1000
+            if self.dt_attack >= self.vel_attack and \
+                    self.power[0] is not None:
+                self.dt_attack = 0
+                CatAttack(self.power, (self.rect.x, self.rect.y))
+        elif self.power[1] == 0:
+            self.dt_attack += dt / 1000
+            if self.dt_fps >= 0.15:
+                self.dt_fps = 0
+                self.cur_frame = (self.cur_frame + 1) % len(self.frames)
+                self.image = self.frames[self.cur_frame]
+                if self.dt_attack >= self.vel_attack and \
+                        self.power[0] is not None:
+                    self.dt_attack = 0
+                    CatAttack(self.power, (self.rect.x, self.rect.y))
+        elif self.power[1] != 0:
+            self.cur_frame = 0
+            self.image = self.frames[self.cur_frame]
 
     def taking_damage(self, damage):
-        pass
+        self.health -= damage
+        if self.health <= 0:
+            self.death()
 
     def death(self):
-        pass
+        self.kill()
+
+    def cut_sheet(self, sheet, columns, rows):
+        self.rect = pygame.Rect(0, 0, sheet.get_width() // columns,
+                                sheet.get_height() // rows)
+        for j in range(rows):
+            for i in range(columns):
+                frame_location = (self.rect.w * i, self.rect.h * j)
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+
+
+class CatAttack(pygame.sprite.Sprite):
+
+    def __init__(self, power, pos):
+        super().__init__(all_cat_attack)
+        self.im, self.pow, self.vel = power
+        self.image = load_image(self.im)
+        self.rect = self.image.get_rect()
+        self.rect.x, self.rect.y = pos[0] + 30, pos[1]
+        self.x = pos[0] + 30
+        if self.pow == 0:
+            self.dt = 0
+
+    def update(self, dt):
+        if self.pow != 0:
+            self.x += self.vel * dt / 1000
+            self.rect.x = self.x
+            if pygame.sprite.spritecollideany(self, all_enemies):
+                pygame.sprite.spritecollideany(self, all_enemies).taking_damage(self.pow)
+                self.kill()
+            elif self.x > DIS_SIZE[0]:
+                self.kill()
+        else:
+            self.dt += dt / 1000
+            if self.dt >= 0.5:
+                self.kill()
 
 
 # Класс врагов
 class Enemies(pygame.sprite.Sprite):
 
-    def __init__(self, name):
-        pass
+    def __init__(self, pos, vel, health, power, name):
+        # данные будут получаться из базы данных
+        super().__init__(all_enemies)
+        sheet = pygame.transform.scale(load_image(name), (400, 160))
+        self.frames = []
+        self.cut_sheet(sheet, 5, 2)
+        self.cur_frame = 0
+        self.image = self.frames[self.cur_frame]
+        enemies_list.setdefault(pos[1], 0)
+        enemies_list[pos[1]] += 1
+        self.rect.x, self.rect.y = pos[0] + 30, pos[1]
+        self.x = pos[0] + 30
+        self.vel = vel
+        self.health, self.power = health, power
+        self.vel_attack = 1
+        self.run = True
+        self.dt_fps = 0
 
     def update(self, dt):
-        pass
+        self.dt_fps += dt / 1000
+        if self.dt_fps >= 0.15:
+            self.dt_fps = 0
+            self.cur_frame = (self.cur_frame + 1) % len(self.frames)
+            self.image = self.frames[self.cur_frame]
+        if self.run:
+            self.x -= self.vel * dt / 1000
+            self.rect.x = self.x
+            if pygame.sprite.spritecollideany(self, all_cats):
+                self.x -= 5
+                self.dt_attack = 0
+                self.run = False
+        else:
+            self.dt_attack += dt / 1000
+            if self.dt_attack >= self.vel_attack:
+                self.dt_attack = 0
+                self.attack(pygame.sprite.spritecollideany(self, all_cats))
+                if not pygame.sprite.spritecollideany(self, all_cats):
+                    self.run = True
+        if self.rect.x == -40:
+            self.kill()
+            # - здоровье игрока
 
     def attack(self, cat):
-        pass
+        cat.taking_damage(self.power)
 
     def taking_damage(self, damage):
-        pass
+        self.health -= damage
+        if self.health <= 0:
+            self.death()
 
     def death(self):
-        pass
+        enemies_list[self.rect.y] -= 1
+        self.kill()
+
+    def cut_sheet(self, sheet, columns, rows):
+        self.rect = pygame.Rect(0, 0, sheet.get_width() // columns,
+                                sheet.get_height() // rows)
+        for j in range(rows):
+            for i in range(columns):
+                frame_location = (self.rect.w * i, self.rect.h * j)
+                self.frames.append(sheet.subsurface(pygame.Rect(
+                    frame_location, self.rect.size)))
+
 
 
 start_screen()
@@ -270,6 +387,7 @@ board.set_view(DIS_SIZE[0] - cell_size * 9, DIS_SIZE[1] - cell_size * 6, cell_si
 
 shop = Shop(1, 5)
 shop.set_view(0, 30, DIS_SIZE[1] // 5 - 6)
+make_cat = ''
 
 running = True
 while running:
@@ -277,8 +395,11 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.MOUSEBUTTONDOWN:
-            shop.check_cat(shop.get_click(event.pos))
-
+            make_cat = shop.check_cat(shop.get_click(event.pos))
+            if make_cat != '':
+                if board.get_click(event.pos) is not None:
+                    shop.move_cat_to_board(event.pos, make_cat)
+                    make_cat = ''
             info_bar.get_click(event.pos)
     dt = clock.tick()
 
