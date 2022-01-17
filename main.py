@@ -218,10 +218,11 @@ class Board:
             return None
 
     def change_board(self, pos):
-        return self.board[board.get_click(pos)[0]][board.get_click(pos)[1]]
+        self.board[board.get_click(pos)[1]][board.get_click(pos)[0]] =\
+            (self.board[board.get_click(pos)[1]][board.get_click(pos)[0]] + 1) % 2
 
     def ret_status(self, pos):
-        return self.board[board.get_click(pos)[0]][board.get_click(pos)[1]]
+        return self.board[board.get_click(pos)[1]][board.get_click(pos)[0]]
 
 
 # Класс для рисования магазина
@@ -356,6 +357,7 @@ class Cats(pygame.sprite.Sprite):
         self.health -= damage
         if self.health <= 0:
             self.death()
+            board.change_board((self.rect.x, self.rect.y))
 
     def death(self):
         self.kill()
@@ -439,6 +441,7 @@ class Enemies(pygame.sprite.Sprite):
         self.dt_fps = 0
 
     def update(self, dt):
+        global player_health
         self.dt_fps += dt / 1000
         if self.dt_fps >= 0.15:
             self.dt_fps = 0
@@ -458,10 +461,10 @@ class Enemies(pygame.sprite.Sprite):
                 self.attack(pygame.sprite.spritecollideany(self, all_cats))
                 if not pygame.sprite.spritecollideany(self, all_cats):
                     self.run = True
-        if self.rect.x == 180:
+        if self.rect.x <= 180:
+            player_health -= 1
             enemies_list[self.rect.y] -= 1
             self.kill()
-            # - здоровье игрока
 
     def attack(self, cat):
         if cat is None:
@@ -488,6 +491,8 @@ class Enemies(pygame.sprite.Sprite):
 
 
 text_level = start_screen()
+player_health = 3
+play = True
 
 enemies_list = dict()
 all_cat_attack = pygame.sprite.Group()
@@ -530,9 +535,32 @@ while running:
                 if len(all_enemies.sprites()) > 0 and enemies_list[k] > 0:
                     break
             else:
-                # показ результата прохождения
-                # и выход в меню уровня
-                pass
+                play = False
+    if player_health <= 0:
+        play = False
+
+    if not play:
+        pygame.draw.rect(screen, (255, 248, 220), (150, 100, 700, 400), width=0)
+        pygame.draw.rect(screen, (231, 198, 151), (150, 100, 700, 400), width=5)
+        if player_health <= 0:
+            win_text = ['Вы проиграли...']
+        else:
+            win_text = ['ПОБЕДА!']
+        font = pygame.font.SysFont('comicsansms', 35)
+        for line in win_text:
+            string_rendered = font.render(line, True, 'black')
+            win_rect = string_rendered.get_rect()
+            win_rect.x = 204
+            win_rect.y = 200
+            screen.blit(string_rendered, win_rect)
+
+        enemies_list = dict()
+        for sp in all_cat_attack:
+            sp.kill()
+        for sp in all_enemies:
+            sp.kill()
+        for sp in all_cats:
+            sp.kill()
 
     all_enemies.draw(screen)
     all_cats.draw(screen)
