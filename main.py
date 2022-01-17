@@ -218,7 +218,7 @@ class Board:
             return None
 
     def change_board(self, pos):
-        self.board[board.get_click(pos)[1]][board.get_click(pos)[0]] =\
+        self.board[board.get_click(pos)[1]][board.get_click(pos)[0]] = \
             (self.board[board.get_click(pos)[1]][board.get_click(pos)[0]] + 1) % 2
 
     def ret_status(self, pos):
@@ -490,6 +490,14 @@ class Enemies(pygame.sprite.Sprite):
                     frame_location, self.rect.size)))
 
 
+def text_for_win_window(text, pos):
+    font = pygame.font.SysFont('comicsansms', 25)
+    string_rendered = font.render(text, True, 'black')
+    rect = string_rendered.get_rect()
+    rect.x, rect.y = pos
+    screen.blit(string_rendered, rect)
+
+
 text_level = start_screen()
 player_health = 3
 play = True
@@ -540,19 +548,20 @@ while running:
         play = False
 
     if not play:
+        # требуется доработка
         pygame.draw.rect(screen, (255, 248, 220), (150, 100, 700, 400), width=0)
         pygame.draw.rect(screen, (231, 198, 151), (150, 100, 700, 400), width=5)
         if player_health <= 0:
-            win_text = ['Вы проиграли...']
+            win_text = 'Вы проиграли...'
         else:
-            win_text = ['ПОБЕДА!']
+            win_text = 'ПОБЕДА!'
         font = pygame.font.SysFont('comicsansms', 35)
-        for line in win_text:
-            string_rendered = font.render(line, True, 'black')
-            win_rect = string_rendered.get_rect()
-            win_rect.x = 204
-            win_rect.y = 200
-            screen.blit(string_rendered, win_rect)
+        string_rendered = font.render(win_text, True, 'black')
+        win_rect = string_rendered.get_rect()
+        win_rect.x, win_rect.y = 300, 220
+        screen.blit(string_rendered, win_rect)
+        text_for_win_window('в меню', (275, 300))
+        text_for_win_window('заново', (400, 300))
 
         enemies_list = dict()
         for sp in all_cat_attack:
