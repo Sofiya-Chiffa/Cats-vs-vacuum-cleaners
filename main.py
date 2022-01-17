@@ -527,9 +527,11 @@ while running:
         load_level(text_level)
         if len(text_level[0]) == 0:
             for k in enemies_list.keys():
-                if enemies_list[k] > 0:
+                if len(all_enemies.sprites()) > 0 and enemies_list[k] > 0:
                     break
             else:
+                # показ результата прохождения
+                # и выход в меню уровня
                 pass
 
     all_enemies.draw(screen)
