@@ -4,7 +4,6 @@ import pygame
 import sqlite3
 from itertools import product
 
-
 DIS_SIZE = (1000, 600)
 pygame.init()
 screen = pygame.display.set_mode(DIS_SIZE)
@@ -76,8 +75,7 @@ def start_screen():
                     event.type == pygame.MOUSEBUTTONDOWN:
                 # Для перехода на карту уровней
                 if 28 <= event.pos[0] <= 348 and 48 <= event.pos[1] <= 118:
-                    level_map()
-                    return
+                    return level_map()
                 # Для выхода из игры
                 elif 28 <= event.pos[0] <= 348 and 120 <= event.pos[1] <= 185:
                     terminate()
@@ -143,8 +141,12 @@ def level_map():
                         num_level = check_board.get_click(event.pos)[0] + 1
                         if check_board.get_click(event.pos)[1] > 0:
                             num_level += 4
-                        print(num_level)
-                        return
+                        cur = conn.cursor()
+                        text_tuple = cur.execute("""
+                            SELECT lvl_map as st FROM levels
+                            WHERE id = ?""", (num_level,)).fetchall()[0]
+                        text = text_tuple[0].split('\\n')
+                        return text
         screen.fill('white')
         all_levels.draw(screen)
         screen.blit(string_rendered, intro_rect)
@@ -175,7 +177,7 @@ def load_level(text):
             Enemies((DIS_SIZE[0], 120 + (i * 80)), 'Вертикальный пылесос')
         elif text[i][0] == 'п':
             Enemies((DIS_SIZE[0], 120 + (i * 80)), 'Пылесос пионер')
-        elif text[i][0] == 'р':
+        elif text[i][0] == 'р' or text[i][0] == 'p':
             Enemies((DIS_SIZE[0], 120 + (i * 80)), 'Робот пылесос')
         text[i] = text[i][1:]
 
@@ -204,7 +206,6 @@ class Board:
         return self.on_click(self.get_cell(mouse_pos))
 
     def on_click(self, cell_coords):
-        print(cell_coords)
         return cell_coords
 
     def get_cell(self, mouse_pos):
@@ -216,15 +217,48 @@ class Board:
         else:
             return None
 
+    def change_board(self, pos):
+        return self.board[board.get_click(pos)[0]][board.get_click(pos)[1]]
+
+    def ret_status(self, pos):
+        return self.board[board.get_click(pos)[0]][board.get_click(pos)[1]]
+
 
 # Класс для рисования магазина
 class Shop(Board):
 
     def __init__(self, width, height):
         super().__init__(width, height)
+        self.arts = {0: ['денежный кот0.png', 0, 'Денежный кот'], 1: ['поп0.png', 0, 'Кот-поп'],
+                     2: ['просто кот0.png', 0, 'Просто кот'],
+                     3: ['танк0.png', 0, 'Кот-танк'], 4: ['вжух0.png', 0, 'Кот-вжух']}
+        # добавить стоимость и имена
 
-    def move_cat_to_board(self):
-        pass
+    def render(self, surface):
+        i = 0
+        for x, y in product(range(self.width), range(self.height)):
+            image = pygame.transform.scale(load_image(self.arts[i][0]), (114, 114))
+            image_rect = image.get_rect()
+            image_rect.x, image_rect.y = x * self.cs + self.left, y * self.cs + self.top
+            screen.blit(image, image_rect)
+            pygame.draw.rect(surface, 'white', (x * self.cs + self.left, y * self.cs + self.top,
+                                                self.cs, self.cs), width=1)
+            i += 1
+
+    def check_cat(self, pos):
+        if pos is None:
+            return ''
+        if self.arts[pos[1]][1] <= 0:  # деньги игрока
+            return self.arts[pos[1]][2]
+        else:
+            return ''
+
+    def move_cat_to_board(self, pos, name):
+        if board.ret_status(pos) == 1:
+            return
+        board.change_board(pos)
+        Cats((board.get_click(pos)[0] * 80 + (DIS_SIZE[0] - cell_size * 9),
+              board.get_click(pos)[1] * 80 + (DIS_SIZE[1] - cell_size * 6)), name)
 
 
 # Класс для рисования информационной панели сверху уровня
@@ -268,18 +302,28 @@ class InfoBar(Board):
 # Класс котиков
 class Cats(pygame.sprite.Sprite):
 
-    def __init__(self, pos, health, power, name):
-        # данные будут получаться из базы данных
+    def __init__(self, pos, name):
         super().__init__(all_cats)
-        sheet = pygame.transform.scale(load_image(name), (400, 160))
+        image = conn.cursor().execute("""
+                            SELECT image FROM cats
+                            WHERE name = ?""", (name,)).fetchall()[0]
+        with open('data\cat.png', 'wb') as file:
+            file.write(image[0])
+        image = load_image('cat.png')
+        sheet = pygame.transform.scale(image, (400, 160))
         self.frames = []
         self.cut_sheet(sheet, 5, 2)
         self.cur_frame = 0
         self.image = self.frames[self.cur_frame]
         self.rect.x, self.rect.y = pos[0], pos[1]
-        self.health = health
-        self.power = power  # картинка атаки, сила атаки, скорость полета атаки
-        self.dt_attack, self.vel_attack = 0, 1
+        self.health = conn.cursor().execute("""
+            SELECT hp FROM cats
+            WHERE name = ?""", (name,)).fetchall()[0][0]
+        self.power = conn.cursor().execute("""
+            SELECT atack_img, dmg, fly_atack_speed FROM cats
+            WHERE name = ?""", (name,)).fetchall()[0]  # картинка атаки, сила атаки, скорость полета атаки
+        self.dt_attack, self.vel_attack = 0, conn.cursor().execute("""SELECT atack_speed 
+            FROM cats WHERE name = ?""", (name,)).fetchall()[0][0]
         self.dt_fps = 0
 
     def update(self, dt):
@@ -330,8 +374,10 @@ class CatAttack(pygame.sprite.Sprite):
 
     def __init__(self, power, pos):
         super().__init__(all_cat_attack)
-        self.im, self.pow, self.vel = power
-        self.image = load_image(self.im)
+        im, self.pow, self.vel = power
+        with open('data\\at_im.png', 'wb') as file:
+            file.write(im)
+        self.image = load_image('at_im.png')
         self.rect = self.image.get_rect()
         self.rect.x, self.rect.y = pos[0] + 30, pos[1]
         self.x = pos[0] + 30
@@ -343,7 +389,7 @@ class CatAttack(pygame.sprite.Sprite):
             self.x += self.vel * dt / 1000
             self.rect.x = self.x
             if pygame.sprite.spritecollideany(self, all_enemies):
-                pygame.sprite.spritecollideany(self, all_enemies).taking_damage(self.pow)
+                self.attack(pygame.sprite.spritecollideany(self, all_enemies))
                 self.kill()
             elif self.x > DIS_SIZE[0]:
                 self.kill()
@@ -352,14 +398,24 @@ class CatAttack(pygame.sprite.Sprite):
             if self.dt >= 0.5:
                 self.kill()
 
+    def attack(self, en):
+        if en is None:
+            return
+        en.taking_damage(self.pow)
+
 
 # Класс врагов
 class Enemies(pygame.sprite.Sprite):
 
-    def __init__(self, pos, vel, health, power, name):
-        # данные будут получаться из базы данных
+    def __init__(self, pos, name):
         super().__init__(all_enemies)
-        sheet = pygame.transform.scale(load_image(name), (400, 160))
+        image = conn.cursor().execute("""
+            SELECT en_image FROM enemies
+            WHERE name = ?""", (name,)).fetchall()[0]
+        with open('data\en.png', 'wb') as file:
+            file.write(image[0])
+        image = load_image('en.png')
+        sheet = pygame.transform.scale(image, (400, 160))
         self.frames = []
         self.cut_sheet(sheet, 5, 2)
         self.cur_frame = 0
@@ -368,9 +424,17 @@ class Enemies(pygame.sprite.Sprite):
         enemies_list[pos[1]] += 1
         self.rect.x, self.rect.y = pos[0] + 30, pos[1]
         self.x = pos[0] + 30
-        self.vel = vel
-        self.health, self.power = health, power
-        self.vel_attack = 1
+        self.vel = conn.cursor().execute("""
+            SELECT speed FROM enemies
+            WHERE name = ?""", (name,)).fetchall()[0][0]
+        self.health, self.power = conn.cursor().execute("""
+            SELECT hp FROM enemies
+            WHERE name = ?""", (name,)).fetchall()[0][0], conn.cursor().execute("""
+            SELECT dmg FROM enemies
+            WHERE name = ?""", (name,)).fetchall()[0][0]
+        self.vel_attack = conn.cursor().execute("""
+            SELECT atack_speed FROM enemies
+            WHERE name = ?""", (name,)).fetchall()[0][0]
         self.run = True
         self.dt_fps = 0
 
@@ -394,11 +458,14 @@ class Enemies(pygame.sprite.Sprite):
                 self.attack(pygame.sprite.spritecollideany(self, all_cats))
                 if not pygame.sprite.spritecollideany(self, all_cats):
                     self.run = True
-        if self.rect.x == -40:
+        if self.rect.x == 180:
+            enemies_list[self.rect.y] -= 1
             self.kill()
             # - здоровье игрока
 
     def attack(self, cat):
+        if cat is None:
+            return
         cat.taking_damage(self.power)
 
     def taking_damage(self, damage):
@@ -420,41 +487,20 @@ class Enemies(pygame.sprite.Sprite):
                     frame_location, self.rect.size)))
 
 
-start_screen()
-
-info_bar = InfoBar(3, 1)
+text_level = start_screen()
 
 enemies_list = dict()
-
+all_cat_attack = pygame.sprite.Group()
+all_enemies = pygame.sprite.Group()
+all_cats = pygame.sprite.Group()
+info_bar = InfoBar(3, 1)
 board = Board(9, 6)
 cell_size = 80
 board.set_view(DIS_SIZE[0] - cell_size * 9, DIS_SIZE[1] - cell_size * 6, cell_size)
 
 shop = Shop(1, 5)
 shop.set_view(0, 30, DIS_SIZE[1] // 5 - 6)
-
-# Cats((90, 90), 500, ('денежный кот атака.png', 0, 0), 'денежный кот.png')
-# Cats((90, 170), 500, ('вжух атака.png', 150, 80), 'вжух.png')
-# Cats((90, 250), 500, ('поп атака.png', 100, 100), 'поп.png')
-# Cats((90, 330), 500, ('просто кот атака.png', 200, 125), 'просто кот.png')
-# Cats((90, 410), 500, (None, 0, 0), 'танк.png')
-#
-# Enemies((DIS_SIZE[0], 170), 100, 2000, 50, 'роб пылесос.png')
-# Enemies((DIS_SIZE[0], 250), 100, 1500, 150, 'пион пылесос.png')
-# Enemies((DIS_SIZE[0], 330), 100, 1750, 100, 'верт пылесос.png')
-
-cursor = conn.cursor()
-cursor.execute("""SELECT l.lvl_map FROM levels l
-                    WHERE l.id = ?""", (num_level,))
-new_text_level = ''
-for row in cursor:
-    new_text_level = row[0]
-text_level = new_text_level.split('\\n')
-print(text_level)
-
-all_cat_attack = pygame.sprite.Group()
-all_enemies = pygame.sprite.Group()
-all_cats = pygame.sprite.Group()
+make_cat = ''
 
 running = True
 while running:
@@ -462,8 +508,11 @@ while running:
         if event.type == pygame.QUIT:
             running = False
         if event.type == pygame.MOUSEBUTTONDOWN:
-            board.get_click(event.pos)
-            shop.get_click(event.pos)
+            if make_cat != '':
+                if board.get_click(event.pos) is not None:
+                    shop.move_cat_to_board(event.pos, make_cat)
+                    make_cat = ''
+            make_cat = shop.check_cat(shop.get_click(event.pos))
             info_bar.get_click(event.pos)
     dt = clock.tick()
     screen.fill('black')
@@ -477,18 +526,20 @@ while running:
         load_level(text_level)
         if len(text_level[0]) == 0:
             for k in enemies_list.keys():
-                if enemies_list[k] > 0:
+                if len(all_enemies.sprites()) > 0 and enemies_list[k] > 0:
                     break
             else:
+                # показ результата прохождения
+                # и выход в меню уровня
                 pass
-                # конец игры
-    
+
     all_enemies.draw(screen)
     all_cats.draw(screen)
     all_cat_attack.draw(screen)
     all_enemies.update(dt)
     all_cats.update(dt)
     all_cat_attack.update(dt)
+
     pygame.display.flip()
 
 pygame.quit()
