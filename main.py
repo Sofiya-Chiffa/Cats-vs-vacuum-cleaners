@@ -286,16 +286,40 @@ class InfoBar(Board):
         else:
             return None
 
+    def update(self):
+        # Надпись уровня
+        cur = conn.cursor()
+        lvl_name = cur.execute("""SELECT lvl_now FROM now_info""").fetchall()[0][0]
+        font = pygame.font.SysFont('comicsansms', 20)
+        text_coord = 1
+        string_rendered = font.render(lvl_name, True, 'white')
+        intro_rect = string_rendered.get_rect()
+        intro_rect.top = text_coord
+        intro_rect.x = DIS_SIZE[0] // 3 // 2 - 20
+        screen.blit(string_rendered, intro_rect)
+        # Монетка
+        image = pygame.transform.scale(load_image('coin.png'), (30, 30))
+        screen.blit(image, (DIS_SIZE[0] // 2 - 50, 0))
+        # Кол-во денег
+        coins = cur.execute("""SELECT coins_now FROM now_info""").fetchall()[0][0]
+        font1 = pygame.font.SysFont('comicsansms', 20)
+        text_coord1 = 0
+        string_rendered1 = font1.render(str(coins), True, 'yellow')
+        intro_rect1 = string_rendered1.get_rect()
+        intro_rect1.top = text_coord1
+        intro_rect1.x = DIS_SIZE[0] // 2
+        screen.blit(string_rendered1, intro_rect1)
+        # Текст на кнопке выхода в меню
+        font2 = pygame.font.SysFont('comicsansms', 20)
+        text_coord2 = 1
+        string_rendered2 = font2.render('BACK TO MENU', True, 'white')
+        intro_rect2 = string_rendered2.get_rect()
+        intro_rect2.top = text_coord2
+        intro_rect2.x = DIS_SIZE[0] - DIS_SIZE[0] // 3 // 2 - 75
+        screen.blit(string_rendered2, intro_rect2)
+
     # Возвращение на карту уровней при нажатии на ячейку
     def back_to_menu(self):
-        pass
-
-    # Рисование текста монет (Их количество будет меняться в процессе игры)
-    def show_coins(self):
-        pass
-
-    # Отображение названия текущего уровня
-    def show_lvl(self):
         pass
 
 
@@ -516,6 +540,8 @@ while running:
             info_bar.get_click(event.pos)
     dt = clock.tick()
     screen.fill('black')
+    info_bar.update()
+
     info_bar.render(screen)
     board.render(screen)
     shop.render(screen)
