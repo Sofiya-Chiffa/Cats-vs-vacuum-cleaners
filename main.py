@@ -258,6 +258,7 @@ class Shop(Board):
         if board.ret_status(pos) == 1:
             return
         board.change_board(pos)
+        # Отнимаются деньги - sek
         Cats((board.get_click(pos)[0] * 80 + (DIS_SIZE[0] - cell_size * 9),
               board.get_click(pos)[1] * 80 + (DIS_SIZE[1] - cell_size * 6)), name)
 
@@ -287,16 +288,41 @@ class InfoBar(Board):
         else:
             return None
 
+    def update(self):
+        # Надпись уровня
+        global num_level
+        cur = conn.cursor()
+        lvl_name = f'lvl.{num_level}'
+        font = pygame.font.SysFont('comicsansms', 20)
+        text_coord = 1
+        string_rendered = font.render(lvl_name, True, 'white')
+        intro_rect = string_rendered.get_rect()
+        intro_rect.top = text_coord
+        intro_rect.x = DIS_SIZE[0] // 3 // 2 - 20
+        screen.blit(string_rendered, intro_rect)
+        # Монетка
+        image = pygame.transform.scale(load_image('coin.png'), (30, 30))
+        screen.blit(image, (DIS_SIZE[0] // 2 - 50, 0))
+        # Кол-во денег
+        coins = cur.execute("""SELECT coins_now FROM now_info""").fetchall()[0][0]
+        font1 = pygame.font.SysFont('comicsansms', 20)
+        text_coord1 = 0
+        string_rendered1 = font1.render(str(coins), True, 'yellow')
+        intro_rect1 = string_rendered1.get_rect()
+        intro_rect1.top = text_coord1
+        intro_rect1.x = DIS_SIZE[0] // 2
+        screen.blit(string_rendered1, intro_rect1)
+        # Текст на кнопке выхода в меню
+        font2 = pygame.font.SysFont('comicsansms', 20)
+        text_coord2 = 1
+        string_rendered2 = font2.render('BACK TO MENU', True, 'white')
+        intro_rect2 = string_rendered2.get_rect()
+        intro_rect2.top = text_coord2
+        intro_rect2.x = DIS_SIZE[0] - DIS_SIZE[0] // 3 // 2 - 75
+        screen.blit(string_rendered2, intro_rect2)
+
     # Возвращение на карту уровней при нажатии на ячейку
     def back_to_menu(self):
-        pass
-
-    # Рисование текста монет (Их количество будет меняться в процессе игры)
-    def show_coins(self):
-        pass
-
-    # Отображение названия текущего уровня
-    def show_lvl(self):
         pass
 
 
@@ -398,6 +424,7 @@ class CatAttack(pygame.sprite.Sprite):
         else:
             self.dt += dt / 1000
             if self.dt >= 0.5:
+                # кот делает деньги
                 self.kill()
 
     def attack(self, en):
@@ -490,6 +517,11 @@ class Enemies(pygame.sprite.Sprite):
                     frame_location, self.rect.size)))
 
 
+def change_coins(num):
+    cur = conn.cursor()
+    cur.execute("""UPDATE now_info SET coins_now += ?""", (num,))
+
+
 def text_for_win_window(text, pos):
     font = pygame.font.SysFont('comicsansms', 25)
     string_rendered = font.render(text, True, 'black')
@@ -498,86 +530,117 @@ def text_for_win_window(text, pos):
     screen.blit(string_rendered, rect)
 
 
-text_level = start_screen()
-player_health = 3
-play = True
+gamer = 0
+run_game = True
+while run_game:
+    if gamer == 0:
+        text_level = start_screen()
+        gamer = False
+    elif gamer == 1:
+        text_level = level_map()
+    else:
+        cur = conn.cursor()
+        text = cur.execute("""
+            SELECT lvl_map as st FROM levels
+            WHERE id = ?""", (num_level,)).fetchall()[0]
+        text_level = text[0].split('\\n')
+    player_health = 3
+    play = True
 
-enemies_list = dict()
-all_cat_attack = pygame.sprite.Group()
-all_enemies = pygame.sprite.Group()
-all_cats = pygame.sprite.Group()
-info_bar = InfoBar(3, 1)
-board = Board(9, 6)
-cell_size = 80
-board.set_view(DIS_SIZE[0] - cell_size * 9, DIS_SIZE[1] - cell_size * 6, cell_size)
+    enemies_list = dict()
+    all_cat_attack = pygame.sprite.Group()
+    all_enemies = pygame.sprite.Group()
+    all_cats = pygame.sprite.Group()
+    info_bar = InfoBar(3, 1)
+    board = Board(9, 6)
+    cell_size = 80
+    board.set_view(DIS_SIZE[0] - cell_size * 9, DIS_SIZE[1] - cell_size * 6, cell_size)
 
-shop = Shop(1, 5)
-shop.set_view(0, 30, DIS_SIZE[1] // 5 - 6)
-make_cat = ''
+    shop = Shop(1, 5)
+    shop.set_view(0, 30, DIS_SIZE[1] // 5 - 6)
+    make_cat = ''
 
-running = True
-while running:
-    for event in pygame.event.get():
-        if event.type == pygame.QUIT:
-            running = False
-        if event.type == pygame.MOUSEBUTTONDOWN:
-            if make_cat != '':
-                if board.get_click(event.pos) is not None:
-                    shop.move_cat_to_board(event.pos, make_cat)
-                    make_cat = ''
-            make_cat = shop.check_cat(shop.get_click(event.pos))
-            info_bar.get_click(event.pos)
-    dt = clock.tick()
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+                gamer = 1
+            if event.type == pygame.MOUSEBUTTONDOWN:
+                if make_cat != '':
+                    if board.get_click(event.pos) is not None:
+                        shop.move_cat_to_board(event.pos, make_cat)
+                        make_cat = ''
+                make_cat = shop.check_cat(shop.get_click(event.pos))
+                if info_bar.get_click(event.pos) == (2, 0):
+                    running = False
+                    gamer = 1
+        dt = clock.tick()
+        screen.fill('black')
+        info_bar.update()
+        info_bar.render(screen)
+        board.render(screen)
+        shop.render(screen)
 
-    screen.fill('black')
-    info_bar.render(screen)
-    board.render(screen)
-    shop.render(screen)
-
-    dt_level += dt / 1000
-    if dt_level >= 1:
-        dt_level = 0
-        load_level(text_level)
-        if len(text_level[0]) == 0:
-            for k in enemies_list.keys():
-                if len(all_enemies.sprites()) > 0 and enemies_list[k] > 0:
-                    break
-            else:
-                play = False
-    if player_health <= 0:
-        play = False
-
-    if not play:
-        # требуется доработка
-        pygame.draw.rect(screen, (255, 248, 220), (150, 100, 700, 400), width=0)
-        pygame.draw.rect(screen, (231, 198, 151), (150, 100, 700, 400), width=5)
+        dt_level += dt / 1000
+        if dt_level >= 1:
+            dt_level = 0
+            load_level(text_level)
+            if len(text_level[0]) == 0:
+                for k in enemies_list.keys():
+                    if len(all_enemies.sprites()) > 0 and enemies_list[k] > 0:
+                        break
+                else:
+                    play = False
         if player_health <= 0:
-            win_text = 'Вы проиграли...'
-        else:
-            win_text = 'ПОБЕДА!'
-        font = pygame.font.SysFont('comicsansms', 35)
-        string_rendered = font.render(win_text, True, 'black')
-        win_rect = string_rendered.get_rect()
-        win_rect.x, win_rect.y = 300, 220
-        screen.blit(string_rendered, win_rect)
-        text_for_win_window('в меню', (275, 300))
-        text_for_win_window('заново', (400, 300))
+            play = False
 
-        enemies_list = dict()
-        for sp in all_cat_attack:
-            sp.kill()
-        for sp in all_enemies:
-            sp.kill()
-        for sp in all_cats:
-            sp.kill()
+        if not play:
+            # требуется доработка
+            pygame.draw.rect(screen, (255, 248, 220), (150, 100, 700, 400), width=0)
+            pygame.draw.rect(screen, (231, 198, 151), (150, 100, 700, 400), width=5)
+            if player_health <= 0:
+                win_text = 'Вы проиграли...'
+            else:
+                win_text = 'ПОБЕДА!'
+                cur = conn.cursor()
+                cur.execute("""UPDATE levels SET status = ? WHERE levels.id = ?""", (1, num_level))
+            font = pygame.font.SysFont('comicsansms', 35)
+            string_rendered = font.render(win_text, True, 'black')
+            win_rect = string_rendered.get_rect()
+            win_rect.x, win_rect.y = 300, 220
+            screen.blit(string_rendered, win_rect)
+            menu_butt = pygame.draw.rect(screen, (186, 175, 150), (270, 295, 100, 40))
+            ret_butt = pygame.draw.rect(screen, (186, 175, 150), (495, 295, 100, 40))
+            text_for_win_window('в меню', (275, 300))
+            text_for_win_window('заново', (500, 300))
 
-    all_enemies.draw(screen)
-    all_cats.draw(screen)
-    all_cat_attack.draw(screen)
-    all_enemies.update(dt)
-    all_cats.update(dt)
-    all_cat_attack.update(dt)
+            for sp in all_cat_attack:
+                sp.kill()
+            for sp in all_enemies:
+                sp.kill()
+            for sp in all_cats:
+                sp.kill()
 
-    pygame.display.flip()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT:
+                    running = False
+                if event.type == pygame.MOUSEBUTTONDOWN and \
+                        menu_butt.collidepoint(event.pos):
+                    gamer = 1
+                    running = False
+                if event.type == pygame.MOUSEBUTTONDOWN and \
+                        ret_butt.collidepoint(event.pos):
+                    gamer = 2
+                    running = False
+
+        all_enemies.draw(screen)
+        all_cats.draw(screen)
+        all_cat_attack.draw(screen)
+        all_enemies.update(dt)
+        all_cats.update(dt)
+        all_cat_attack.update(dt)
+
+        pygame.display.flip()
 
 pygame.quit()
