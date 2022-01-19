@@ -254,12 +254,14 @@ class Shop(Board):
 
     def check_cat(self, pos):
         if pos is None:
+            self.cub = 0
             return ''
         self.cub = pos
         cur = conn.cursor()
         if self.arts[pos[1]][1] <= cur.execute("""SELECT coins_now FROM now_info""").fetchall()[0][0]:
             return [self.arts[pos[1]][2], self.arts[pos[1]][1]]
         else:
+            self.cub = 0
             return ''
 
     def move_cat_to_board(self, pos, name, cost):
