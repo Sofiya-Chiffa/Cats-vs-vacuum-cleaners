@@ -230,9 +230,10 @@ class Shop(Board):
 
     def __init__(self, width, height):
         super().__init__(width, height)
-        self.arts = {0: ['денежный кот0.png', 0, 'Денежный кот'], 1: ['поп0.png', 0, 'Кот-поп'],
-                     2: ['просто кот0.png', 0, 'Просто кот'],
-                     3: ['танк0.png', 0, 'Кот-танк'], 4: ['вжух0.png', 0, 'Кот-вжух']}
+        self.cub = 0
+        self.arts = {0: ['денежный кот0.png', 25, 'Денежный кот'], 1: ['поп0.png', 100, 'Кот-поп'],
+                     2: ['просто кот0.png', 75, 'Просто кот'],
+                     3: ['танк0.png', 80, 'Кот-танк'], 4: ['вжух0.png', 125, 'Кот-вжух']}
         # добавить стоимость и имена
 
     def render(self, surface):
@@ -245,20 +246,29 @@ class Shop(Board):
             pygame.draw.rect(surface, 'white', (x * self.cs + self.left, y * self.cs + self.top,
                                                 self.cs, self.cs), width=1)
             i += 1
+        if self.cub != 0:
+            s = pygame.Surface((DIS_SIZE[1] // 5 - 6, DIS_SIZE[1] // 5 - 6))
+            s.set_alpha(50)
+            s.fill((245, 255, 133, 0))
+            screen.blit(s, ((DIS_SIZE[1] // 5 - 6) * self.cub[0], (DIS_SIZE[1] // 5 - 6) * self.cub[1] + 30))
 
     def check_cat(self, pos):
         if pos is None:
             return ''
-        if self.arts[pos[1]][1] <= 0:  # деньги игрока
-            return self.arts[pos[1]][2]
+        self.cub = pos
+        cur = conn.cursor()
+        if self.arts[pos[1]][1] <= cur.execute("""SELECT coins_now FROM now_info""").fetchall()[0][0]:
+            return [self.arts[pos[1]][2], self.arts[pos[1]][1]]
         else:
             return ''
 
-    def move_cat_to_board(self, pos, name):
+    def move_cat_to_board(self, pos, name, cost):
+        self.cub = 0
         if board.ret_status(pos) == 1:
             return
         board.change_board(pos)
-        # Отнимаются деньги - sek
+        cur = conn.cursor()
+        cur.execute("""UPDATE now_info SET coins_now = coins_now + ?""", (-cost,))
         Cats((board.get_click(pos)[0] * 80 + (DIS_SIZE[0] - cell_size * 9),
               board.get_click(pos)[1] * 80 + (DIS_SIZE[1] - cell_size * 6)), name)
 
@@ -424,7 +434,8 @@ class CatAttack(pygame.sprite.Sprite):
         else:
             self.dt += dt / 1000
             if self.dt >= 0.5:
-                # кот делает деньги
+                cur = conn.cursor()
+                cur.execute("""UPDATE now_info SET coins_now = coins_now + ?""", (20,))
                 self.kill()
 
     def attack(self, en):
@@ -501,6 +512,8 @@ class Enemies(pygame.sprite.Sprite):
     def taking_damage(self, damage):
         self.health -= damage
         if self.health <= 0:
+            cur = conn.cursor()
+            cur.execute("""UPDATE now_info SET coins_now = coins_now + ?""", (10,))
             self.death()
 
     def death(self):
@@ -559,7 +572,8 @@ while run_game:
     shop = Shop(1, 5)
     shop.set_view(0, 30, DIS_SIZE[1] // 5 - 6)
     make_cat = ''
-
+    cur = conn.cursor()
+    cur.execute("""UPDATE now_info SET coins_now = ?""", (1000,))
     running = True
     while running:
         for event in pygame.event.get():
@@ -569,7 +583,7 @@ while run_game:
             if event.type == pygame.MOUSEBUTTONDOWN:
                 if make_cat != '':
                     if board.get_click(event.pos) is not None:
-                        shop.move_cat_to_board(event.pos, make_cat)
+                        shop.move_cat_to_board(event.pos, make_cat[0], make_cat[1])
                         make_cat = ''
                 make_cat = shop.check_cat(shop.get_click(event.pos))
                 if info_bar.get_click(event.pos) == (2, 0):
