@@ -571,6 +571,7 @@ while run_game:
     cell_size = 80
     board.set_view(DIS_SIZE[0] - cell_size * 9, DIS_SIZE[1] - cell_size * 6, cell_size)
 
+    game_fon = pygame.transform.scale(load_image('фон_трава.png'), (DIS_SIZE[0], DIS_SIZE[1]))
     shop = Shop(1, 5)
     shop.set_view(0, 30, DIS_SIZE[1] // 5 - 6)
     make_cat = ''
@@ -592,7 +593,7 @@ while run_game:
                     running = False
                     gamer = 1
         dt = clock.tick()
-        screen.fill('black')
+        screen.blit(game_fon, (0, 0))
         info_bar.update()
         info_bar.render(screen)
         board.render(screen)
