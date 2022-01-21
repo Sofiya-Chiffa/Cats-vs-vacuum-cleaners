@@ -169,6 +169,7 @@ def level_map():
         clock.tick(FPS)
 
 
+# загружает уровень по тексту
 def load_level(text):
     if text[0] == '':
         return
@@ -192,22 +193,27 @@ class Board:
         self.top = 90
         self.cs = 80
 
+    # меняет размеры и расположение поля
     def set_view(self, left, top, cell_size):
         self.left = left
         self.top = top
         self.cs = cell_size
 
+    # отрисовка поля
     def render(self, surface):
         for x, y in product(range(self.width), range(self.height)):
             pygame.draw.rect(surface, 'white', (x * self.cs + self.left, y * self.cs + self.top,
                                                 self.cs, self.cs), width=1)
 
+    # возвращает координаты клетки
     def get_click(self, mouse_pos):
         return self.on_click(self.get_cell(mouse_pos))
 
+    # возвращает координаты клетки
     def on_click(self, cell_coords):
         return cell_coords
 
+    # преобразует координаты в номер столбца и строки
     def get_cell(self, mouse_pos):
         if self.left <= mouse_pos[0] <= self.left + self.cs * self.width and \
                 self.top <= mouse_pos[1] <= self.top + self.cs * self.height:
@@ -217,10 +223,12 @@ class Board:
         else:
             return None
 
+    # изменяет статус клетки
     def change_board(self, pos):
         self.board[board.get_click(pos)[1]][board.get_click(pos)[0]] = \
             (self.board[board.get_click(pos)[1]][board.get_click(pos)[0]] + 1) % 2
 
+    # возвращает статус клетки
     def ret_status(self, pos):
         return self.board[board.get_click(pos)[1]][board.get_click(pos)[0]]
 
@@ -236,6 +244,7 @@ class Shop(Board):
                      3: ['танк0.png', 80, 'Кот-танк'], 4: ['вжух0.png', 125, 'Кот-вжух']}
         # добавить стоимость и имена
 
+    # отрисовка котиков в магазине
     def render(self, surface):
         i = 0
         for x, y in product(range(self.width), range(self.height)):
@@ -252,6 +261,7 @@ class Shop(Board):
             s.fill((245, 255, 133, 0))
             screen.blit(s, ((DIS_SIZE[1] // 5 - 6) * self.cub[0], (DIS_SIZE[1] // 5 - 6) * self.cub[1] + 30))
 
+    # проверяет, можем ли мы купить нажатого кота и возвращает его название и стоимость
     def check_cat(self, pos):
         if pos is None:
             self.cub = 0
@@ -264,6 +274,7 @@ class Shop(Board):
             self.cub = 0
             return ''
 
+    # передвижение кота на доску
     def move_cat_to_board(self, pos, name, cost):
         self.cub = 0
         if board.ret_status(pos) == 1:
@@ -300,6 +311,7 @@ class InfoBar(Board):
         else:
             return None
 
+    # обновление надписи уровня, денег, отрисовка текста на панели
     def update(self):
         # Надпись уровня
         global num_level
@@ -361,6 +373,7 @@ class Cats(pygame.sprite.Sprite):
             FROM cats WHERE name = ?""", (name,)).fetchall()[0][0]
         self.dt_fps = 0
 
+    # отрисовка анимации и атаки котов
     def update(self, dt):
         self.dt_fps += dt / 1000
         if self.rect.y in enemies_list.keys() and enemies_list[self.rect.y] != 0:
@@ -387,15 +400,18 @@ class Cats(pygame.sprite.Sprite):
             self.cur_frame = 0
             self.image = self.frames[self.cur_frame]
 
+    # получение урона
     def taking_damage(self, damage):
         self.health -= damage
         if self.health <= 0:
             self.death()
             board.change_board((self.rect.x, self.rect.y))
 
+    # смерть котика
     def death(self):
         self.kill()
 
+    # обрезка фрейма
     def cut_sheet(self, sheet, columns, rows):
         self.rect = pygame.Rect(0, 0, sheet.get_width() // columns,
                                 sheet.get_height() // rows)
@@ -406,6 +422,7 @@ class Cats(pygame.sprite.Sprite):
                     frame_location, self.rect.size)))
 
 
+# класс атаки котов
 class CatAttack(pygame.sprite.Sprite):
 
     def __init__(self, power, pos):
@@ -420,6 +437,7 @@ class CatAttack(pygame.sprite.Sprite):
         if self.pow == 0:
             self.dt = 0
 
+    # отрисовка спрайтов атаки и проверка на пересечение с врагом
     def update(self, dt):
         if self.pow != 0:
             self.x += self.vel * dt / 1000
@@ -436,6 +454,7 @@ class CatAttack(pygame.sprite.Sprite):
                 cur.execute("""UPDATE now_info SET coins_now = coins_now + ?""", (20,))
                 self.kill()
 
+    # атака по врагу
     def attack(self, en):
         if en is None:
             return
@@ -476,6 +495,7 @@ class Enemies(pygame.sprite.Sprite):
         self.run = True
         self.dt_fps = 0
 
+    # отрисовка анимации врага, проверка его атаки
     def update(self, dt):
         global player_health
         self.dt_fps += dt / 1000
@@ -502,11 +522,13 @@ class Enemies(pygame.sprite.Sprite):
             enemies_list[self.rect.y] -= 1
             self.kill()
 
+    # атака по коту
     def attack(self, cat):
         if cat is None:
             return
         cat.taking_damage(self.power)
 
+    # тнимается здоровье у врага
     def taking_damage(self, damage):
         self.health -= damage
         if self.health <= 0:
@@ -514,10 +536,12 @@ class Enemies(pygame.sprite.Sprite):
             cur.execute("""UPDATE now_info SET coins_now = coins_now + ?""", (10,))
             self.death()
 
+    # смерть врага
     def death(self):
         enemies_list[self.rect.y] -= 1
         self.kill()
 
+    # обрезка картинки
     def cut_sheet(self, sheet, columns, rows):
         self.rect = pygame.Rect(0, 0, sheet.get_width() // columns,
                                 sheet.get_height() // rows)
@@ -528,11 +552,13 @@ class Enemies(pygame.sprite.Sprite):
                     frame_location, self.rect.size)))
 
 
+# обновляет поле с монетами в БД
 def change_coins(num):
     cur = conn.cursor()
     cur.execute("""UPDATE now_info SET coins_now += ?""", (num,))
 
 
+#  добавляет текст в окно завершения уровня
 def text_for_win_window(text, pos):
     font = pygame.font.SysFont('comicsansms', 25)
     string_rendered = font.render(text, True, 'black')
@@ -609,7 +635,6 @@ while run_game:
             play = False
 
         if not play:
-            # требуется доработка
             pygame.draw.rect(screen, (255, 248, 220), (150, 100, 700, 400), width=0)
             pygame.draw.rect(screen, (231, 198, 151), (150, 100, 700, 400), width=5)
             if player_health <= 0:
