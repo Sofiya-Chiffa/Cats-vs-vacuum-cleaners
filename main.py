@@ -333,10 +333,6 @@ class InfoBar(Board):
         intro_rect2.x = DIS_SIZE[0] - DIS_SIZE[0] // 3 // 2 - 75
         screen.blit(string_rendered2, intro_rect2)
 
-    # Возвращение на карту уровней при нажатии на ячейку
-    def back_to_menu(self):
-        pass
-
 
 # Класс котиков
 class Cats(pygame.sprite.Sprite):
@@ -571,7 +567,7 @@ while run_game:
     cell_size = 80
     board.set_view(DIS_SIZE[0] - cell_size * 9, DIS_SIZE[1] - cell_size * 6, cell_size)
 
-    game_fon = pygame.transform.scale(load_image('фон_трава.png'), (DIS_SIZE[0], DIS_SIZE[1]))
+    game_fon = pygame.transform.scale(load_image('фон_ковер.png'), (DIS_SIZE[0], DIS_SIZE[1]))
     shop = Shop(1, 5)
     shop.set_view(0, 30, DIS_SIZE[1] // 5 - 6)
     make_cat = ''
